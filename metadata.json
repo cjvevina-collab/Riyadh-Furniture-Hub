@@ -1,0 +1,6 @@
+{
+  "name": "Riyadh Furniture Hub",
+  "description": "Premium furniture for every space in Riyadh, Saudi Arabia. Modern single, twin, queen, king beds, bedroom sets, and medicated mattresses with free Riyadh delivery.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
