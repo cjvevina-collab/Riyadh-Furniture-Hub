@@ -4,9 +4,9 @@ export const TRANSLATIONS = {
   en: {
     // Ticker
     ticker1: 'Welcome to Riyadh Furniture Hub – Premium Modern Living',
-    ticker2: 'Free Delivery Across All Riyadh Districts',
+    ticker2: 'Same-Day Free Delivery Across All Riyadh Districts',
     ticker3: 'Cash on Delivery (COD) Available at Doorstep',
-    ticker4: 'Direct Telephone & WhatsApp: +966 570 713 184',
+    ticker4: 'WhatsApp Support: +966 570 713 184',
     ticker5: 'Artisan Crafted at Riyadh Furniture Factory',
     ticker6: 'Custom Sizing & Bespoke Dimensions Available',
 
@@ -77,12 +77,12 @@ export const TRANSLATIONS = {
     faqBadge: 'Got Questions?',
     faqTitle: 'Frequently Asked Questions',
     faqSub: 'Everything you need to know about our furniture orders and delivery in Riyadh.',
-    q1: 'Do you offer delivery across Riyadh?',
-    a1: 'Yes, we offer convenient delivery across Riyadh. Delivery options and availability may vary depending on your location and order size.',
+    q1: 'Do you offer same-day delivery across Riyadh?',
+    a1: 'Yes! We provide same-day express delivery across all Riyadh districts for orders placed during the day. Inspect your furniture before making payment.',
     q2: 'Do you offer Cash on Delivery?',
-    a2: 'Yes, Cash on Delivery (COD) is available for customer convenience.',
+    a2: 'Yes, Cash on Delivery (COD) is 100% available at your doorstep across Riyadh.',
     q3: 'What are your delivery times and charges?',
-    a3: 'We offer free delivery across Riyadh. Delivery times may vary depending on your location and order size.',
+    a3: 'We offer FREE same-day delivery across Riyadh. Your furniture is delivered directly to your doorstep on the exact same day.',
 
     // Customer Support
     supportBadge: 'Always Here For You',
@@ -125,7 +125,7 @@ export const TRANSLATIONS = {
     relatedProducts: 'You May Also Like',
     relatedProductsSub: 'Complementary furniture designs crafted with the same factory-direct precision.',
     productSpecifications: 'Specifications & Dimensions',
-    riyadhDeliveryNotice: 'Delivered directly to your door in Riyadh within 24-48 hours. Inspect before payment.',
+    riyadhDeliveryNotice: 'Same-Day Express Delivery in Riyadh (Order Today, Get Today). Inspect before payment.',
     chatWithSpecialist: 'Speak with Factory Specialist on WhatsApp',
     orderQuantity: 'Quantity',
 
@@ -146,9 +146,9 @@ export const TRANSLATIONS = {
   ar: {
     // Ticker
     ticker1: 'مرحباً بكم في مركز الرياض للأثاث – تصاميم عصرية راقية',
-    ticker2: 'توصيل مجاني لجميع أحياء ومناطق الرياض',
+    ticker2: 'توصيل مجاني بنفس اليوم لجميع أحياء ومناطق الرياض',
     ticker3: 'الدفع عند الاستلام متاح عند باب منزلك',
-    ticker4: 'للطلب والاستفسار هاتف وواتساب: +966 570 713 184',
+    ticker4: 'دعم وطلب عبر واتساب: +966 570 713 184',
     ticker5: 'صناعة متقنة ومباشرة من مصنع الرياض للأثاث',
     ticker6: 'إمكانية تفصيل وتعديل المقاسات حسب طلبكم',
 
@@ -219,12 +219,12 @@ export const TRANSLATIONS = {
     faqBadge: 'هل لديك استفسار؟',
     faqTitle: 'الأسئلة الشائعة',
     faqSub: 'كل ما تحتاج لمعرفته حول طلب وتوصيل الأثاث في الرياض.',
-    q1: 'هل تقدمون خدمة التوصيل في جميع أنحاء الرياض؟',
-    a1: 'نعم، نحن نقدم خدمة التوصيل المريح عبر جميع أنحاء الرياض. قد تختلف أوقات التوصيل حسب موقعك وحجم الطلب.',
+    q1: 'هل تقدمون خدمة التوصيل في نفس اليوم بالرياض؟',
+    a1: 'نعم! نوفر توصيلاً سريعاً في نفس اليوم لجميع أحياء الرياض للطلبات المؤكدة، مع إمكانية المعاينة والفحص الكامل قبل الدفع.',
     q2: 'هل توفرون خدمة الدفع عند الاستلام؟',
-    a2: 'نعم، الدفع عند الاستلام (COD) متاح لراحة جميع عملائنا.',
+    a2: 'نعم، الدفع عند الاستلام (COD) متاح ومضمون لراحة جميع عملائنا في الرياض.',
     q3: 'ما هي مواعيد وأسعار التوصيل؟',
-    a3: 'نقدم توصيلاً مجانياً في جميع أنحاء الرياض. قد تختلف مواعيد التوصيل حسب الموقع وحجم الطلب.',
+    a3: 'التوصيل مجاني بالكامل (0 ريال) في نفس اليوم لجميع مناطق الرياض.',
 
     // Customer Support
     supportBadge: 'دائماً في خدمتكم',
@@ -267,7 +267,7 @@ export const TRANSLATIONS = {
     relatedProducts: 'منتجات قد تنال إعجابك',
     relatedProductsSub: 'قطع أثاث مكملة ومصنوعة بنفس الدقة والحرفية المصنعية العالية.',
     productSpecifications: 'المواصفات وخامات التصنيع',
-    riyadhDeliveryNotice: 'توصيل مباشر لباب منزلك بالرياض خلال 24 إلى 48 ساعة مع إمكانية المعاينة قبل الدفع.',
+    riyadhDeliveryNotice: 'توصيل مباشر في نفس اليوم بالرياض (اطلب اليوم واستلم اليوم) مع إمكانية المعاينة قبل الدفع.',
     chatWithSpecialist: 'تحدث مع خبير المصنع عبر واتساب',
     orderQuantity: 'الكمية المطلوبة',
 

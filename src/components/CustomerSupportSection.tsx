@@ -55,14 +55,22 @@ export const CustomerSupportSection: React.FC<CustomerSupportSectionProps> = ({
 
             {/* Quick Contact Badges */}
             <div className="flex flex-wrap items-center gap-6 pt-4 text-xs text-stone-300 border-t border-stone-700/60">
-              <span className="flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-[#C59A3F]" />
-                {BUSINESS_INFO.phone}
-              </span>
-              <span className="flex items-center gap-1.5">
+              <a 
+                href={getWhatsAppLink("Hello Riyadh Furniture Hub Support")} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 hover:text-[#25D366] transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" />
+                <span>WhatsApp: {BUSINESS_INFO.whatsapp}</span>
+              </a>
+              <a 
+                href={`mailto:${BUSINESS_INFO.email}`}
+                className="flex items-center gap-1.5 hover:text-[#C59A3F] transition-colors"
+              >
                 <Mail className="w-3.5 h-3.5 text-[#C59A3F]" />
-                {BUSINESS_INFO.email}
-              </span>
+                <span>{BUSINESS_INFO.email}</span>
+              </a>
             </div>
           </div>
 

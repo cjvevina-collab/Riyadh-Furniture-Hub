@@ -62,22 +62,22 @@ export const FullHeroSlider: React.FC<FullHeroSliderProps> = ({ onBannerClick })
       onMouseLeave={() => setIsPaused(false)}
       aria-label="Hero Banners"
     >
-      {/* Aspect-ratio container: wide on desktop, clean on mobile */}
-      <div className="relative w-full aspect-16/7 sm:aspect-21/8 lg:aspect-24/8 min-h-[220px] sm:min-h-[360px] lg:min-h-[460px]">
+      {/* Full Aspect-ratio container matching banner dimensions (1280x580) so images NEVER cut */}
+      <div className="relative w-full aspect-[1280/580] max-h-[720px] bg-[#F5F2EB]">
         {BANNER_SLIDES.map((slide, idx) => {
           const isActive = idx === currentIndex;
           return (
             <div
               key={slide.id}
               onClick={onBannerClick}
-              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out cursor-pointer ${
+              className={`absolute inset-0 transition-opacity duration-1000 ease-in-out cursor-pointer flex items-center justify-center ${
                 isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}
             >
               <img
                 src={slide.imageUrl}
                 alt={slide.alt}
-                className="w-full h-full object-cover object-center"
+                className="w-full h-full object-contain object-center select-none"
                 loading={idx === 0 ? 'eager' : 'lazy'}
               />
             </div>

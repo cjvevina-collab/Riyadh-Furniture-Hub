@@ -46,51 +46,61 @@ export const HomeCategoriesBar: React.FC<HomeCategoriesBarProps> = ({
           </button>
         </div>
 
-        {/* Horizontal Category Cards / Circles */}
-        <div className="overflow-x-auto pb-4 pt-2 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-          <div className="flex items-stretch gap-4 sm:gap-5 min-w-max">
-            {categories.map((cat) => {
-              const isSelected = 
-                (cat.id === 'all' && (selectedCategory === 'all' || selectedCategory === 'All Products')) ||
-                selectedCategory.toLowerCase() === cat.name.toLowerCase();
+        {/* Responsive Categories Grid - No slider, 2 per row on mobile, large images */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
+          {categories.map((cat) => {
+            const isSelected = 
+              (cat.id === 'all' && (selectedCategory === 'all' || selectedCategory === 'All Products')) ||
+              selectedCategory.toLowerCase() === cat.name.toLowerCase();
 
-              const itemCount = products.filter(p => 
-                cat.id === 'all' || p.category.toLowerCase() === cat.name.toLowerCase()
-              ).length;
+            const itemCount = products.filter(p => 
+              cat.id === 'all' || p.category.toLowerCase() === cat.name.toLowerCase()
+            ).length;
 
-              return (
-                <div
-                  key={cat.id}
-                  onClick={() => onSelectCategory(cat.id === 'all' ? 'all' : cat.name)}
-                  className={`group w-36 sm:w-44 flex flex-col items-center text-center p-3 sm:p-4 rounded-2xl cursor-pointer transition-all duration-300 border ${
-                    isSelected
-                      ? 'bg-[#FAF8F5] border-[#C59A3F] shadow-md -translate-y-1'
-                      : 'bg-white border-stone-200/80 hover:border-[#C59A3F]/50 hover:shadow-md hover:-translate-y-0.5'
-                  }`}
-                >
-                  {/* Category Image Circle */}
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-stone-100 mb-3 border-2 border-stone-200/90 group-hover:border-[#C59A3F] transition-colors relative shadow-xs">
-                    <img
-                      src={cat.imageUrl}
-                      alt={cat.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      onError={(e) => {
-                        e.currentTarget.src = fallbackImage;
-                      }}
-                    />
+            return (
+              <div
+                key={cat.id}
+                onClick={() => onSelectCategory(cat.id === 'all' ? 'all' : cat.name)}
+                className={`group flex flex-col p-2.5 sm:p-3.5 rounded-2xl cursor-pointer transition-all duration-300 border ${
+                  isSelected
+                    ? 'bg-[#FAF8F5] border-[#C59A3F] shadow-md -translate-y-1 ring-1 ring-[#C59A3F]/50'
+                    : 'bg-white border-stone-200/90 hover:border-[#C59A3F]/60 hover:shadow-lg hover:-translate-y-0.5'
+                }`}
+              >
+                {/* Large Category Image Box (Double previous size) */}
+                <div className="w-full aspect-4/3 sm:aspect-square rounded-xl sm:rounded-2xl overflow-hidden bg-stone-100 mb-2.5 border border-stone-200/70 group-hover:border-[#C59A3F] transition-colors relative shadow-xs">
+                  <img
+                    src={cat.imageUrl}
+                    alt={cat.name}
+                    className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                    loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.src = fallbackImage;
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  
+                  {/* Subtle Item Count Badge */}
+                  <div className="absolute top-2 right-2 rtl:right-auto rtl:left-2">
+                    <span className="px-1.5 py-0.5 bg-black/55 backdrop-blur-xs text-[10px] font-semibold text-white rounded-md">
+                      {itemCount}
+                    </span>
                   </div>
+                </div>
 
-                  <span className="font-serif font-bold text-xs sm:text-sm text-[#1A2332] group-hover:text-[#C59A3F] line-clamp-1 transition-colors">
+                {/* Category Title & Count */}
+                <div className="text-center px-1">
+                  <span className="font-serif font-bold text-xs sm:text-sm text-[#1A2332] group-hover:text-[#C59A3F] line-clamp-1 transition-colors block">
                     {cat.name}
                   </span>
                   
-                  <span className="text-[10px] text-stone-400 mt-1">
+                  <span className="text-[10px] text-stone-400 mt-0.5 block">
                     {itemCount} {itemCount === 1 ? t.item : t.items}
                   </span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
 
       </div>

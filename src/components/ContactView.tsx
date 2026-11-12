@@ -102,29 +102,31 @@ export const ContactView: React.FC<ContactViewProps> = ({ lang = 'en' }) => {
             </div>
           </div>
 
-          {/* Phone Call Card */}
+          {/* Riyadh Showroom & Factory Location Card */}
           <div className="bg-white rounded-2xl p-6 border border-stone-200/90 shadow-sm flex flex-col justify-between hover:border-[#C59A3F] transition-colors group">
             <div>
               <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center mb-4">
-                <Phone className="w-6 h-6 text-[#C59A3F]" />
+                <Building2 className="w-6 h-6 text-[#C59A3F]" />
               </div>
               <h3 className="font-serif font-bold text-lg text-stone-900">
-                {isAr ? 'اتصال هاتفي' : 'Telephone Call'}
+                {isAr ? 'المصنع والمعرض' : 'Factory & Showroom'}
               </h3>
               <p className="text-stone-500 text-xs mt-1">
-                {isAr ? 'خط اتصال مباشر للتوصيل السريع واستفسارات المصنع.' : 'Direct phone line for quick dispatch and factory inquiries.'}
+                {isAr ? 'موقعنا المركزي لتصنيع وتوزيع الأثاث بالرياض.' : 'Our central Riyadh facility for artisan crafting and dispatch.'}
               </p>
-              <div className="mt-3 text-sm font-semibold text-stone-800" dir="ltr">
-                {BUSINESS_INFO.phone}
+              <div className="mt-3 text-xs font-semibold text-stone-800 leading-snug">
+                {BUSINESS_INFO.address}
               </div>
             </div>
             <div className="mt-6">
               <a
-                href={`tel:${BUSINESS_INFO.phone}`}
+                href="https://maps.google.com/?q=JP6G+793,+Riyadh+12656,+Saudi+Arabia"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-[#1A2332] hover:bg-[#C59A3F] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
               >
-                <Phone className="w-4 h-4 text-[#C59A3F]" />
-                <span>{isAr ? 'اتصل بنا الآن' : 'Call Us Now'}</span>
+                <MapPin className="w-4 h-4 text-[#C59A3F]" />
+                <span>{isAr ? 'عرض الموقع على الخريطة' : 'View on Google Maps'}</span>
               </a>
             </div>
           </div>
@@ -167,8 +169,8 @@ export const ContactView: React.FC<ContactViewProps> = ({ lang = 'en' }) => {
             </h2>
             <p className="text-stone-500 text-xs sm:text-sm mb-6 leading-relaxed">
               {isAr 
-                ? 'املأ النموذج وسيقوم ممثل خدمة العملاء بالتواصل معك مباشرة عبر الهاتف أو الواتساب.' 
-                : 'Fill out this form and our client representative will reach back out immediately via WhatsApp or phone call.'}
+                ? 'املأ النموذج وسيقوم ممثل خدمة العملاء بالتواصل معك مباشرة عبر الواتساب.' 
+                : 'Fill out this form and our client representative will reach back out immediately via WhatsApp.'}
             </p>
 
             {submitted ? (

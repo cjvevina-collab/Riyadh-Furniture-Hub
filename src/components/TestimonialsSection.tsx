@@ -202,11 +202,11 @@ export const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ lang =
             </div>
           </div>
           <div>
-            <div className="font-serif text-2xl sm:text-3xl font-bold text-[#1A2332]">
-              24-48h
+            <div className="font-serif text-2xl sm:text-3xl font-bold text-emerald-700">
+              {isAr ? 'نفس اليوم' : 'Same-Day'}
             </div>
             <div className="text-xs text-stone-500 mt-1">
-              {isAr ? 'توصيل لباب المنزل بالرياض' : 'Doorstep Delivery Window'}
+              {isAr ? 'توصيل لباب المنزل بالرياض' : 'Doorstep Delivery in Riyadh'}
             </div>
           </div>
           <div>

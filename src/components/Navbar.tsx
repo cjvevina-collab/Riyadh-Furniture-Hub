@@ -70,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { icon: ShieldCheck, text: t.ticker1 },
     { icon: Truck, text: t.ticker2 },
     { icon: CreditCard, text: t.ticker3 },
-    { icon: Phone, text: t.ticker4 },
+    { icon: MessageCircle, text: t.ticker4 },
     { icon: Award, text: t.ticker5 },
     { icon: MapPin, text: t.ticker6 }
   ];
@@ -382,19 +382,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <div className="pt-3 border-t border-stone-100 space-y-2">
             <a
-              href={`tel:${BUSINESS_INFO.phone}`}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-stone-800"
+              href={getWhatsAppLink("Hello Riyadh Furniture Hub, I'm reaching out from your website.")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-stone-800 hover:text-[#25D366]"
             >
-              <Phone className="w-4 h-4 text-[#C59A3F]" />
-              <span>{BUSINESS_INFO.phone}</span>
+              <MessageCircle className="w-4 h-4 text-[#25D366]" />
+              <span>WhatsApp: {BUSINESS_INFO.whatsapp}</span>
             </a>
             <a
               href={getWhatsAppLink("Hello Riyadh Furniture Hub, I'm reaching out from your website.")}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-[#1A2332] text-white rounded-lg text-xs font-semibold shadow-xs"
+              className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
             >
-              <MessageCircle className="w-4 h-4 text-[#C59A3F]" />
+              <MessageCircle className="w-4 h-4 text-white" />
               <span>{language === 'ar' ? 'تواصل عبر واتساب' : 'WhatsApp Us'}</span>
             </a>
           </div>

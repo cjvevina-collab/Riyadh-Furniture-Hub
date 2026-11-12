@@ -11,7 +11,7 @@ export const BUSINESS_INFO = {
   whatsappRaw: '966570713184',
   email: 'bfbcgi@gmail.com',
   website: 'https://riyadhfurniturehub.com/',
-  logoUrl: 'https://i.postimg.cc/Gp6fJ3yx/Chat-GPT-Image-Aug-14-2026-11-10-57-AM.png',
+  logoUrl: 'https://i.postimg.cc/wBBTYrSW/Riyadh-Luxury-Furniture-Emblem.png',
   currency: 'SAR',
   currencyArabic: 'ر.س',
   copyrightYear: '2026',

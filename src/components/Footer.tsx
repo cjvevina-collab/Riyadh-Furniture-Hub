@@ -225,18 +225,10 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab, onOpenAdmin, lang 
                 href={getWhatsAppLink("Hello Riyadh Furniture Hub, I need assistance with an order.")}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-start gap-2.5 text-stone-700 hover:text-[#C59A3F] transition-colors"
+                className="flex items-start gap-2.5 text-stone-700 hover:text-[#25D366] transition-colors"
               >
-                <MessageCircle className="w-4 h-4 text-[#C59A3F] shrink-0 mt-0.5" />
+                <MessageCircle className="w-4 h-4 text-[#25D366] shrink-0 mt-0.5" />
                 <span>WhatsApp: {BUSINESS_INFO.whatsapp}</span>
-              </a>
-
-              <a
-                href={`tel:${BUSINESS_INFO.phone}`}
-                className="flex items-start gap-2.5 text-stone-700 hover:text-[#C59A3F] transition-colors"
-              >
-                <Phone className="w-4 h-4 text-[#C59A3F] shrink-0 mt-0.5" />
-                <span>Call: {BUSINESS_INFO.phone}</span>
               </a>
 
               <a

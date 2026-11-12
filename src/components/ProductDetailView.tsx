@@ -334,8 +334,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <span className="text-[10px] text-stone-400 block font-medium uppercase tracking-wider">
                   {isAr ? 'التوصيل' : 'Delivery'}
                 </span>
-                <span className="font-semibold text-stone-800 text-xs truncate block mt-0.5">
-                  24-48h Riyadh
+                <span className="font-semibold text-emerald-700 text-xs truncate block mt-0.5">
+                  {isAr ? 'نفس اليوم بالرياض' : 'Same-Day Riyadh'}
                 </span>
               </div>
             </div>
@@ -380,24 +380,15 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 </button>
               </div>
 
-              {/* Direct WhatsApp Order Button (NO PHONE NUMBER IN BUTTON!) */}
+              {/* Direct WhatsApp Order Button */}
               <a
                 href={getWhatsAppLink(whatsappInquiryText)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-[#1A2332] hover:bg-[#C59A3F] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer border border-[#C59A3F]/40"
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer"
               >
-                <MessageCircle className="w-3.5 h-3.5 text-[#C59A3F]" />
-                <span>{isAr ? 'طلب عبر واتساب' : 'Order on WhatsApp'}</span>
-              </a>
-
-              {/* Direct Telephone Button (NO PHONE NUMBER IN BUTTON!) */}
-              <a
-                href={`tel:${BUSINESS_INFO.phone}`}
-                className="w-full inline-flex items-center justify-center gap-2 py-2 px-3 bg-white hover:bg-stone-50 text-stone-700 border border-stone-200 rounded-lg text-xs font-medium transition-colors"
-              >
-                <Phone className="w-3 h-3 text-[#C59A3F]" />
-                <span>{isAr ? 'اتصل بنا' : 'Call Us'}</span>
+                <MessageCircle className="w-3.5 h-3.5 text-white" />
+                <span>{isAr ? 'طلب فوري عبر واتساب' : 'Order on WhatsApp'}</span>
               </a>
             </div>
 
