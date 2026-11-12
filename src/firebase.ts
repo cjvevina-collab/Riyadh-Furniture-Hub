@@ -17,8 +17,9 @@ import {
   onAuthStateChanged,
   User 
 } from 'firebase/auth';
-import { Product, OrderDetails } from './types';
+import { Product, OrderDetails, Category } from './types';
 import { INITIAL_PRODUCTS } from './data/initialData';
+import { DEFAULT_PRODUCT_CATEGORIES, getStoredCategories, saveStoredCategories } from './data/categories';
 
 // User provided Firebase configuration
 export const firebaseConfig = {
@@ -50,6 +51,12 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
     
+    // Categories: Anyone can read, only authenticated admin can create, update, or delete
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // Customer Orders: Anyone can submit an order, only authenticated admin can view or modify
     match /orders/{orderId} {
       allow create: if true;
@@ -150,6 +157,105 @@ export async function deleteProduct(productId: string): Promise<void> {
     await deleteDoc(docRef);
   } catch (error) {
     console.warn('Firestore delete warning (removed locally):', error);
+  }
+}
+
+// ==========================================
+// CATEGORIES FIRESTORE BACKEND SYNC
+// ==========================================
+
+// Fetch all categories with Firestore sync and local fallback
+export async function fetchCategories(): Promise<Category[]> {
+  try {
+    const categoriesRef = collection(db, 'categories');
+    const snapshot = await getDocs(categoriesRef);
+
+    if (!snapshot.empty) {
+      const remoteCategories: Category[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data() as Category;
+        remoteCategories.push({
+          id: docSnap.id,
+          name: data.name || '',
+          slug: data.slug || '',
+          description: data.description || '',
+          imageUrl: data.imageUrl || '',
+          itemCount: data.itemCount,
+          order: (data as any).order ?? 999
+        } as any);
+      });
+
+      // Sort by order
+      remoteCategories.sort((a: any, b: any) => (a.order ?? 999) - (b.order ?? 999));
+      saveStoredCategories(remoteCategories);
+      return remoteCategories;
+    }
+
+    // If Firestore collection is empty, return local data and seed in background
+    const local = getStoredCategories();
+    saveAllCategories(local).catch(e => console.warn('Categories auto-seed skipped:', e));
+    return local;
+  } catch (error) {
+    console.warn('Firestore fetchCategories warning (using local):', error);
+    return getStoredCategories();
+  }
+}
+
+// Save or Update a single Category in Firestore & local cache
+export async function saveCategory(category: Category): Promise<void> {
+  const current = getStoredCategories();
+  const index = current.findIndex(c => c.id === category.id);
+  let updatedList: Category[];
+  if (index >= 0) {
+    updatedList = [...current];
+    updatedList[index] = category;
+  } else {
+    updatedList = [...current, category];
+  }
+  saveStoredCategories(updatedList);
+
+  try {
+    const docRef = doc(db, 'categories', category.id);
+    await setDoc(docRef, {
+      ...category,
+      order: index >= 0 ? index : updatedList.length - 1,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+  } catch (error) {
+    console.warn('Firestore saveCategory write warning (saved locally):', error);
+  }
+}
+
+// Save all categories to Firestore and local cache
+export async function saveAllCategories(categories: Category[]): Promise<void> {
+  saveStoredCategories(categories);
+
+  try {
+    for (let i = 0; i < categories.length; i++) {
+      const cat = categories[i];
+      const docRef = doc(db, 'categories', cat.id);
+      await setDoc(docRef, {
+        ...cat,
+        order: i,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  } catch (error) {
+    console.warn('Firestore saveAllCategories write warning (saved locally):', error);
+  }
+}
+
+// Delete Category from Firestore and local cache
+export async function deleteCategory(categoryId: string): Promise<void> {
+  const current = getStoredCategories();
+  const filtered = current.filter(c => c.id !== categoryId);
+  saveStoredCategories(filtered);
+
+  try {
+    const docRef = doc(db, 'categories', categoryId);
+    await deleteDoc(docRef);
+  } catch (error) {
+    console.warn('Firestore deleteCategory warning (removed locally):', error);
   }
 }
 

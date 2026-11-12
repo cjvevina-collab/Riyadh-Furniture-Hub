@@ -30,7 +30,7 @@ import { TestimonialsSection } from './components/TestimonialsSection';
 import { CartDrawer } from './components/CartDrawer';
 import { AdminPortal } from './components/AdminPortal';
 import { Product, CartItem, Category } from './types';
-import { fetchProducts, listenToAuth } from './firebase';
+import { fetchProducts, fetchCategories, saveAllCategories, listenToAuth } from './firebase';
 import { INITIAL_PRODUCTS } from './data/initialData';
 import { getStoredCategories } from './data/categories';
 import { Language } from './data/translations';
@@ -58,14 +58,22 @@ export default function App() {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // Load products & listen to Firebase Auth
+  // Load products & categories from Firebase Firestore
   const loadProductData = async () => {
     const list = await fetchProducts();
     setProducts(list);
   };
 
+  const loadCategoriesData = async () => {
+    const list = await fetchCategories();
+    if (list && list.length > 0) {
+      setCategories(list);
+    }
+  };
+
   useEffect(() => {
     loadProductData();
+    loadCategoriesData();
     const unsubscribe = listenToAuth((user) => {
       setCurrentUser(user);
     });
@@ -336,7 +344,10 @@ export default function App() {
         products={products}
         categories={categories}
         onRefreshProducts={loadProductData}
-        onUpdateCategories={(newCats) => setCategories(newCats)}
+        onUpdateCategories={(newCats) => {
+          setCategories(newCats);
+          saveAllCategories(newCats);
+        }}
       />
 
     </div>

@@ -28,6 +28,9 @@ import {
   logoutUser, 
   saveProduct, 
   deleteProduct, 
+  saveCategory,
+  deleteCategory,
+  saveAllCategories,
   uploadImageToImgBB, 
   RECOMMENDED_FIRESTORE_RULES,
   getLocalOrders
@@ -108,6 +111,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     imageUrl: ''
   });
   const [isUploadingCatImage, setIsUploadingCatImage] = useState(false);
+  const [isSyncingAllCategories, setIsSyncingAllCategories] = useState(false);
+  const [catSyncSuccess, setCatSyncSuccess] = useState('');
 
   const handleOpenAddCategory = () => {
     setEditingCategoryId(null);
@@ -125,7 +130,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setIsAddingCategory(true);
   };
 
-  const handleDeleteCategory = (catId: string, name: string) => {
+  const handleSyncAllCategoriesToFirestore = async () => {
+    setIsSyncingAllCategories(true);
+    setCatSyncSuccess('');
+    try {
+      await saveAllCategories(categories);
+      setCatSyncSuccess('All categories successfully synced to Firebase Firestore database!');
+      setTimeout(() => setCatSyncSuccess(''), 5000);
+    } catch (err: any) {
+      alert(`Sync error: ${err.message}`);
+    } finally {
+      setIsSyncingAllCategories(false);
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string, name: string) => {
     if (catId === 'all') {
       alert('The "All Products" category cannot be deleted.');
       return;
@@ -134,6 +153,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = categories.filter(c => c.id !== catId);
       onUpdateCategories(updated);
       saveStoredCategories(updated);
+      try {
+        await deleteCategory(catId);
+      } catch (err) {
+        console.warn('Firestore delete category warning:', err);
+      }
     }
   };
 
@@ -331,32 +355,46 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  // Add/Edit Category Handler (کیٹیگریز بنانے اور ایڈٹ کرنے کا آپشن)
-  const handleSaveCategory = (e: React.FormEvent) => {
+  // Add/Edit Category Handler (Syncs directly to Firestore backend & local cache)
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!categoryForm.name.trim()) return;
 
     let updated: Category[];
+    let savedCat: Category;
     if (editingCategoryId) {
-      updated = categories.map(c => c.id === editingCategoryId ? {
-        ...c,
+      const existing = categories.find(c => c.id === editingCategoryId);
+      savedCat = {
+        ...existing!,
+        id: editingCategoryId,
         name: categoryForm.name.trim(),
-        description: categoryForm.description.trim() || c.description,
-        imageUrl: categoryForm.imageUrl.trim() || c.imageUrl
-      } : c);
+        slug: categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
+        description: categoryForm.description.trim() || existing?.description || 'Custom furniture collection handcrafted for Riyadh.',
+        imageUrl: categoryForm.imageUrl.trim() || existing?.imageUrl || ''
+      };
+      updated = categories.map(c => c.id === editingCategoryId ? savedCat : c);
     } else {
-      const newCat: Category = {
+      savedCat = {
         id: `cat-${Date.now()}`,
         name: categoryForm.name.trim(),
         slug: categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
         description: categoryForm.description.trim() || 'Custom furniture collection handcrafted for Riyadh.',
         imageUrl: categoryForm.imageUrl.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80'
       };
-      updated = [...categories, newCat];
+      updated = [...categories, savedCat];
     }
 
     onUpdateCategories(updated);
     saveStoredCategories(updated);
+
+    // Save directly to Firestore database so changes persist across all refreshes and devices
+    try {
+      await saveCategory(savedCat);
+      await saveAllCategories(updated);
+    } catch (err: any) {
+      console.warn('Firestore category sync warning:', err);
+    }
+
     setIsAddingCategory(false);
     setEditingCategoryId(null);
     setCategoryForm({ name: '', description: '', imageUrl: '' });
@@ -680,14 +718,33 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </p>
                   </div>
 
-                  <button
-                    onClick={handleOpenAddCategory}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#1A2332] hover:bg-black text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-                  >
-                    <FolderPlus className="w-4 h-4 text-[#C59A3F]" />
-                    <span>Create New Category</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={handleSyncAllCategoriesToFirestore}
+                      disabled={isSyncingAllCategories}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                      title="Sync all categories to Firebase Firestore database"
+                    >
+                      <Layers className="w-4 h-4 text-emerald-200" />
+                      <span>{isSyncingAllCategories ? 'Syncing to Cloud...' : 'Sync All to Cloud'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleOpenAddCategory}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#1A2332] hover:bg-black text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    >
+                      <FolderPlus className="w-4 h-4 text-[#C59A3F]" />
+                      <span>Create New Category</span>
+                    </button>
+                  </div>
                 </div>
+
+                {catSyncSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{catSyncSuccess}</span>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {categories.map((c) => (

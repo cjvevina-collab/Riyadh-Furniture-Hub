@@ -3,24 +3,19 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const BANNER_SLIDES = [
   {
-    id: 1,
-    imageUrl: 'https://i.postimg.cc/pLvxtZcL/banner2323-(1).jpg',
-    alt: 'Riyadh Furniture Hub Banner 1'
-  },
-  {
     id: 2,
     imageUrl: 'https://i.postimg.cc/6pKwN0bQ/banner2323-(2).jpg',
-    alt: 'Riyadh Furniture Hub Banner 2'
+    alt: 'Riyadh Furniture Hub Banner 1'
   },
   {
     id: 3,
     imageUrl: 'https://i.postimg.cc/Z5mZhcsR/banner2323-(3).jpg',
-    alt: 'Riyadh Furniture Hub Banner 3'
+    alt: 'Riyadh Furniture Hub Banner 2'
   },
   {
     id: 4,
     imageUrl: 'https://i.postimg.cc/Mpwx8D3H/banner2323-(4).jpg',
-    alt: 'Riyadh Furniture Hub Banner 4'
+    alt: 'Riyadh Furniture Hub Banner 3'
   }
 ];
 
@@ -62,8 +57,8 @@ export const FullHeroSlider: React.FC<FullHeroSliderProps> = ({ onBannerClick })
       onMouseLeave={() => setIsPaused(false)}
       aria-label="Hero Banners"
     >
-      {/* Full Aspect-ratio container matching banner dimensions (1280x580) so images NEVER cut */}
-      <div className="relative w-full aspect-[1280/580] max-h-[720px] bg-[#F5F2EB]">
+      {/* Full Aspect-ratio container matching the remaining 1280x527 banners */}
+      <div className="relative w-full aspect-[1280/527] max-h-[720px] bg-[#F5F2EB]">
         {BANNER_SLIDES.map((slide, idx) => {
           const isActive = idx === currentIndex;
           return (
