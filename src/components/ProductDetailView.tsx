@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
   ShoppingBag, 
   MessageCircle, 
-  Phone, 
   Truck, 
   ShieldCheck, 
   Check, 
   Star, 
-  MapPin, 
-  Building2, 
   Share2, 
-  CheckCircle2
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  X,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 import { Product } from '../types';
 import { formatPrice, getWhatsAppLink, BUSINESS_INFO } from '../data/config';
@@ -67,10 +70,54 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const isAr = lang === 'ar';
   const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
 
-  const [selectedImage, setSelectedImage] = useState<string>(product.imageUrl);
+  const allImages = [product.imageUrl, ...(product.additionalImages || [])].filter(Boolean);
+
+  const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isZoomed, setIsZoomed] = useState<boolean>(false);
   const [quantity, setQuantity] = useState(1);
   const [addedAnimation, setAddedAnimation] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+
+  const selectedImage = allImages[currentImageIndex] || product.imageUrl;
+
+  const handleNextImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (allImages.length <= 1) return;
+    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
+    setIsZoomed(false);
+  };
+
+  const handlePrevImage = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (allImages.length <= 1) return;
+    setCurrentImageIndex((prev) => (prev - 1 + allImages.length) % allImages.length);
+    setIsZoomed(false);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchEndX.current = null;
+    touchStartX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.targetTouches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null || touchEndX.current === null) return;
+    const distance = touchStartX.current - touchEndX.current;
+    if (distance > 45) {
+      handleNextImage();
+    } else if (distance < -45) {
+      handlePrevImage();
+    }
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
 
   // Reviews state with localStorage persistence
   const storageKey = `rfh_reviews_${product.id}`;
@@ -91,12 +138,35 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
   const [showReviewSuccess, setShowReviewSuccess] = useState(false);
 
   useEffect(() => {
-    setSelectedImage(product.imageUrl);
+    setCurrentImageIndex(0);
+    setIsFullscreen(false);
+    setIsZoomed(false);
     setQuantity(1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [product.id, product.imageUrl]);
 
-  const allImages = [product.imageUrl, ...(product.additionalImages || [])].filter(Boolean);
+  // Keyboard navigation in fullscreen mode
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false);
+        setIsZoomed(false);
+      } else if (e.key === 'ArrowRight') {
+        setCurrentImageIndex((prev) => (prev + 1) % Math.max(1, allImages.length));
+        setIsZoomed(false);
+      } else if (e.key === 'ArrowLeft') {
+        setCurrentImageIndex((prev) => (prev - 1 + Math.max(1, allImages.length)) % Math.max(1, allImages.length));
+        setIsZoomed(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isFullscreen, allImages.length]);
 
   const handleAdd = () => {
     onAddToCart(product, quantity);
@@ -192,19 +262,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         {/* Main Product Section */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start">
           
-          {/* Left: Gallery */}
+          {/* Left: Interactive Image Slider & Fullscreen Trigger */}
           <div className="lg:col-span-7 space-y-3">
-            <div className="relative aspect-4/3 sm:aspect-16/11 rounded-2xl overflow-hidden bg-white border border-stone-200/90 shadow-sm">
+            <div 
+              onClick={() => setIsFullscreen(true)}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="relative aspect-4/3 sm:aspect-16/11 rounded-2xl overflow-hidden bg-white border border-stone-200/90 shadow-sm group cursor-zoom-in select-none"
+            >
               <img
                 src={selectedImage}
-                alt={product.title}
+                alt={`${product.title} - ${currentImageIndex + 1}`}
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80';
                 }}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover transition-transform duration-300"
               />
 
-              <div className="absolute top-3 left-3 rtl:left-auto rtl:right-3 flex flex-wrap gap-1.5 z-10">
+              {/* Top Badges */}
+              <div className="absolute top-3 left-3 rtl:left-auto rtl:right-3 flex flex-wrap gap-1.5 z-10 pointer-events-none">
                 {product.inStock ? (
                   <span className="px-2.5 py-1 bg-emerald-600/90 text-white text-[11px] font-semibold rounded-md flex items-center gap-1">
                     <Check className="w-3 h-3" />
@@ -220,18 +297,65 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                   <span>{isAr ? 'توصيل مجاني بالرياض' : 'Free Riyadh Delivery'}</span>
                 </span>
               </div>
+
+              {/* Left / Right Slider Arrows */}
+              {allImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handlePrevImage}
+                    aria-label="Previous image"
+                    className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextImage}
+                    aria-label="Next image"
+                    className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs shadow-md transition-all cursor-pointer"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+
+              {/* Bottom Controls: Image Counter + Fullscreen Button */}
+              <div className="absolute bottom-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+                {allImages.length > 1 ? (
+                  <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-semibold">
+                    {currentImageIndex + 1} / {allImages.length}
+                  </span>
+                ) : (
+                  <span />
+                )}
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFullscreen(true);
+                  }}
+                  aria-label="Fullscreen view"
+                  className="pointer-events-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/65 hover:bg-black/85 text-white text-[11px] font-semibold backdrop-blur-xs shadow-md transition-colors cursor-pointer"
+                >
+                  <Maximize2 className="w-3.5 h-3.5 text-[#C59A3F]" />
+                  <span>{isAr ? 'ملء الشاشة' : 'Fullscreen'}</span>
+                </button>
+              </div>
             </div>
 
-            {/* Thumbnail Strip */}
+            {/* Thumbnail Strip (Unlimited Images) */}
             {allImages.length > 1 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1.5">
                 {allImages.map((imgUrl, idx) => (
                   <button
+                    type="button"
                     key={idx}
-                    onClick={() => setSelectedImage(imgUrl)}
+                    onClick={() => setCurrentImageIndex(idx)}
                     className={`relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
-                      selectedImage === imgUrl 
-                        ? 'border-[#C59A3F]' 
+                      currentImageIndex === idx 
+                        ? 'border-[#C59A3F] ring-2 ring-[#C59A3F]/30' 
                         : 'border-stone-200 opacity-70 hover:opacity-100'
                     }`}
                   >
@@ -582,6 +706,125 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
         )}
 
       </div>
+
+      {/* Fullscreen Lightbox Slider Modal */}
+      {isFullscreen && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/95 flex flex-col justify-between select-none animate-in fade-in duration-200"
+          onClick={() => {
+            setIsFullscreen(false);
+            setIsZoomed(false);
+          }}
+        >
+          {/* Top Bar */}
+          <div 
+            className="flex items-center justify-between px-4 sm:px-6 py-3 bg-black/60 border-b border-white/10 text-white z-20"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="px-2.5 py-1 rounded-full bg-white/15 text-xs font-bold shrink-0">
+                {currentImageIndex + 1} / {allImages.length}
+              </span>
+              <span className="text-xs sm:text-sm font-serif truncate text-stone-200">
+                {product.title}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsZoomed((z) => !z)}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                title={isZoomed ? 'Zoom Out' : 'Zoom In'}
+              >
+                {isZoomed ? <ZoomOut className="w-4 h-4 sm:w-5 sm:h-5" /> : <ZoomIn className="w-4 h-4 sm:w-5 sm:h-5" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFullscreen(false);
+                  setIsZoomed(false);
+                }}
+                className="p-2 rounded-full bg-white/15 hover:bg-rose-600 text-white transition-colors cursor-pointer"
+                aria-label="Close fullscreen"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Center Image Stage with Swipe & Slide Arrows */}
+          <div 
+            className="relative flex-1 flex items-center justify-center overflow-auto p-2 sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            <img
+              src={selectedImage}
+              alt={`${product.title} fullscreen ${currentImageIndex + 1}`}
+              onClick={() => setIsZoomed((z) => !z)}
+              className={`transition-transform duration-300 rounded-lg select-none ${
+                isZoomed 
+                  ? 'max-w-none max-h-none scale-150 cursor-zoom-out' 
+                  : 'max-w-full max-h-[75vh] object-contain cursor-zoom-in'
+              }`}
+            />
+
+            {allImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrevImage}
+                  aria-label="Previous fullscreen image"
+                  className="fixed left-2 sm:left-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/15 hover:bg-[#C59A3F] text-white flex items-center justify-center backdrop-blur-md shadow-xl transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextImage}
+                  aria-label="Next fullscreen image"
+                  className="fixed right-2 sm:right-6 top-1/2 -translate-y-1/2 z-30 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/15 hover:bg-[#C59A3F] text-white flex items-center justify-center backdrop-blur-md shadow-xl transition-colors cursor-pointer"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Bottom Thumbnail Strip inside Fullscreen */}
+          {allImages.length > 1 && (
+            <div 
+              className="px-4 py-3 bg-black/75 border-t border-white/10 flex items-center justify-center gap-2 overflow-x-auto z-20"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {allImages.map((imgUrl, idx) => (
+                <button
+                  type="button"
+                  key={idx}
+                  onClick={() => {
+                    setCurrentImageIndex(idx);
+                    setIsZoomed(false);
+                  }}
+                  className={`w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
+                    currentImageIndex === idx 
+                      ? 'border-[#C59A3F] scale-105' 
+                      : 'border-white/20 opacity-50 hover:opacity-100'
+                  }`}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`Thumbnail ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

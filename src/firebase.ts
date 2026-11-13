@@ -6,9 +6,7 @@ import {
   doc, 
   setDoc, 
   deleteDoc, 
-  updateDoc,
-  query,
-  orderBy
+  writeBatch
 } from 'firebase/firestore';
 import { 
   getAuth, 
@@ -19,7 +17,7 @@ import {
 } from 'firebase/auth';
 import { Product, OrderDetails, Category } from './types';
 import { INITIAL_PRODUCTS } from './data/initialData';
-import { DEFAULT_PRODUCT_CATEGORIES, getStoredCategories, saveStoredCategories } from './data/categories';
+import { getStoredCategories, saveStoredCategories } from './data/categories';
 
 // User provided Firebase configuration
 export const firebaseConfig = {
@@ -74,6 +72,22 @@ service cloud.firestore {
 const LOCAL_STORAGE_KEY = 'rfh_products_cache_v1';
 const LOCAL_ORDERS_KEY = 'rfh_orders_cache_v1';
 
+// Helper to strip undefined fields (Firestore throws on undefined values)
+function stripUndefined<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+export interface SyncResult {
+  synced: boolean;
+  error?: string;
+}
+
 // Get local cached products
 function getLocalProducts(): Product[] {
   try {
@@ -100,20 +114,28 @@ function saveLocalProducts(products: Product[]) {
 export async function fetchProducts(): Promise<Product[]> {
   try {
     const productsRef = collection(db, 'products');
-    const q = query(productsRef, orderBy('createdAt', 'desc'));
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(productsRef);
 
     if (!snapshot.empty) {
       const remoteProducts: Product[] = [];
       snapshot.forEach(docSnap => {
-        remoteProducts.push({ id: docSnap.id, ...(docSnap.data() as Omit<Product, 'id'>) });
+        const data = docSnap.data() as Omit<Product, 'id'>;
+        remoteProducts.push({
+          ...data,
+          id: docSnap.id,
+          additionalImages: Array.isArray(data.additionalImages) ? data.additionalImages : []
+        });
+      });
+      // Sort newest first in JS so products without createdAt are never excluded
+      remoteProducts.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
       });
       saveLocalProducts(remoteProducts);
       return remoteProducts;
     }
-    // If remote collection is completely empty, attempt to seed the starter product
-    const local = getLocalProducts();
-    return local;
+    return getLocalProducts();
   } catch (error) {
     console.warn('Firestore fetch failed or permission not set yet, using local data:', error);
     return getLocalProducts();
@@ -121,33 +143,42 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 // Save or Update a Product
-export async function saveProduct(product: Product): Promise<void> {
+export async function saveProduct(product: Product): Promise<SyncResult> {
+  const safeProduct: Product = {
+    ...product,
+    additionalImages: Array.isArray(product.additionalImages) ? product.additionalImages : [],
+    createdAt: product.createdAt || new Date().toISOString()
+  };
+
   // Update local state first for instant UI response
   const current = getLocalProducts();
-  const index = current.findIndex(p => p.id === product.id);
+  const index = current.findIndex(p => p.id === safeProduct.id);
   let updatedList: Product[];
   if (index >= 0) {
     updatedList = [...current];
-    updatedList[index] = product;
+    updatedList[index] = safeProduct;
   } else {
-    updatedList = [product, ...current];
+    updatedList = [safeProduct, ...current];
   }
   saveLocalProducts(updatedList);
 
-  // Sync to Firestore
+  // Sync to Firestore (strip all undefined fields first)
   try {
-    const docRef = doc(db, 'products', product.id);
-    await setDoc(docRef, {
-      ...product,
+    const docRef = doc(db, 'products', safeProduct.id);
+    const payload = stripUndefined({
+      ...safeProduct,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (error) {
-    console.warn('Firestore write warning (saved locally):', error);
+    });
+    await setDoc(docRef, payload);
+    return { synced: true };
+  } catch (error: any) {
+    console.warn('Firestore product write warning (saved locally):', error);
+    return { synced: false, error: error?.message || 'Firestore write failed' };
   }
 }
 
 // Delete a Product
-export async function deleteProduct(productId: string): Promise<void> {
+export async function deleteProduct(productId: string): Promise<SyncResult> {
   const current = getLocalProducts();
   const filtered = current.filter(p => p.id !== productId);
   saveLocalProducts(filtered);
@@ -155,8 +186,10 @@ export async function deleteProduct(productId: string): Promise<void> {
   try {
     const docRef = doc(db, 'products', productId);
     await deleteDoc(docRef);
-  } catch (error) {
+    return { synced: true };
+  } catch (error: any) {
     console.warn('Firestore delete warning (removed locally):', error);
+    return { synced: false, error: error?.message || 'Firestore delete failed' };
   }
 }
 
@@ -173,16 +206,19 @@ export async function fetchCategories(): Promise<Category[]> {
     if (!snapshot.empty) {
       const remoteCategories: Category[] = [];
       snapshot.forEach(docSnap => {
-        const data = docSnap.data() as Category;
-        remoteCategories.push({
+        const data = docSnap.data() as any;
+        const catObj: Category & { order?: number } = {
           id: docSnap.id,
           name: data.name || '',
           slug: data.slug || '',
           description: data.description || '',
           imageUrl: data.imageUrl || '',
-          itemCount: data.itemCount,
-          order: (data as any).order ?? 999
-        } as any);
+          order: typeof data.order === 'number' ? data.order : 999
+        };
+        if (typeof data.itemCount === 'number') {
+          catObj.itemCount = data.itemCount;
+        }
+        remoteCategories.push(catObj);
       });
 
       // Sort by order
@@ -191,9 +227,11 @@ export async function fetchCategories(): Promise<Category[]> {
       return remoteCategories;
     }
 
-    // If Firestore collection is empty, return local data and seed in background
+    // Only auto-seed if an authenticated admin is currently signed in
     const local = getStoredCategories();
-    saveAllCategories(local).catch(e => console.warn('Categories auto-seed skipped:', e));
+    if (auth.currentUser) {
+      saveAllCategories(local).catch(e => console.warn('Categories auto-seed skipped:', e));
+    }
     return local;
   } catch (error) {
     console.warn('Firestore fetchCategories warning (using local):', error);
@@ -202,7 +240,7 @@ export async function fetchCategories(): Promise<Category[]> {
 }
 
 // Save or Update a single Category in Firestore & local cache
-export async function saveCategory(category: Category): Promise<void> {
+export async function saveCategory(category: Category, orderIndex?: number): Promise<SyncResult> {
   const current = getStoredCategories();
   const index = current.findIndex(c => c.id === category.id);
   let updatedList: Category[];
@@ -216,37 +254,45 @@ export async function saveCategory(category: Category): Promise<void> {
 
   try {
     const docRef = doc(db, 'categories', category.id);
-    await setDoc(docRef, {
+    const payload = stripUndefined({
       ...category,
-      order: index >= 0 ? index : updatedList.length - 1,
+      order: typeof orderIndex === 'number' ? orderIndex : (index >= 0 ? index : updatedList.length - 1),
       updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (error) {
+    });
+    await setDoc(docRef, payload, { merge: true });
+    return { synced: true };
+  } catch (error: any) {
     console.warn('Firestore saveCategory write warning (saved locally):', error);
+    return { synced: false, error: error?.message || 'Firestore write failed' };
   }
 }
 
-// Save all categories to Firestore and local cache
-export async function saveAllCategories(categories: Category[]): Promise<void> {
+// Save all categories atomically to Firestore and local cache
+export async function saveAllCategories(categories: Category[]): Promise<SyncResult> {
   saveStoredCategories(categories);
 
   try {
-    for (let i = 0; i < categories.length; i++) {
-      const cat = categories[i];
+    const batch = writeBatch(db);
+    const now = new Date().toISOString();
+    categories.forEach((cat, idx) => {
       const docRef = doc(db, 'categories', cat.id);
-      await setDoc(docRef, {
+      const payload = stripUndefined({
         ...cat,
-        order: i,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    }
-  } catch (error) {
+        order: idx,
+        updatedAt: now
+      });
+      batch.set(docRef, payload, { merge: true });
+    });
+    await batch.commit();
+    return { synced: true };
+  } catch (error: any) {
     console.warn('Firestore saveAllCategories write warning (saved locally):', error);
+    return { synced: false, error: error?.message || 'Firestore batch write failed' };
   }
 }
 
 // Delete Category from Firestore and local cache
-export async function deleteCategory(categoryId: string): Promise<void> {
+export async function deleteCategory(categoryId: string): Promise<SyncResult> {
   const current = getStoredCategories();
   const filtered = current.filter(c => c.id !== categoryId);
   saveStoredCategories(filtered);
@@ -254,8 +300,10 @@ export async function deleteCategory(categoryId: string): Promise<void> {
   try {
     const docRef = doc(db, 'categories', categoryId);
     await deleteDoc(docRef);
-  } catch (error) {
+    return { synced: true };
+  } catch (error: any) {
     console.warn('Firestore deleteCategory warning (removed locally):', error);
+    return { synced: false, error: error?.message || 'Firestore delete failed' };
   }
 }
 

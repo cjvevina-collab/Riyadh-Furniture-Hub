@@ -30,7 +30,7 @@ import { TestimonialsSection } from './components/TestimonialsSection';
 import { CartDrawer } from './components/CartDrawer';
 import { AdminPortal } from './components/AdminPortal';
 import { Product, CartItem, Category } from './types';
-import { fetchProducts, fetchCategories, saveAllCategories, listenToAuth } from './firebase';
+import { fetchProducts, fetchCategories, listenToAuth } from './firebase';
 import { INITIAL_PRODUCTS } from './data/initialData';
 import { getStoredCategories } from './data/categories';
 import { Language } from './data/translations';
@@ -344,10 +344,7 @@ export default function App() {
         products={products}
         categories={categories}
         onRefreshProducts={loadProductData}
-        onUpdateCategories={(newCats) => {
-          setCategories(newCats);
-          saveAllCategories(newCats);
-        }}
+        onUpdateCategories={(newCats) => setCategories(newCats)}
       />
 
     </div>

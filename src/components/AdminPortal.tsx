@@ -101,6 +101,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [rulesCopied, setRulesCopied] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [duplicatingProductId, setDuplicatingProductId] = useState<string | null>(null);
+  const [productNotice, setProductNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // New Category form modal
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -111,12 +114,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     imageUrl: ''
   });
   const [isUploadingCatImage, setIsUploadingCatImage] = useState(false);
+  const [catUploadStatus, setCatUploadStatus] = useState('');
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [isSyncingAllCategories, setIsSyncingAllCategories] = useState(false);
   const [catSyncSuccess, setCatSyncSuccess] = useState('');
+  const [catSyncError, setCatSyncError] = useState('');
 
   const handleOpenAddCategory = () => {
     setEditingCategoryId(null);
     setCategoryForm({ name: '', description: '', imageUrl: '' });
+    setCatUploadStatus('');
     setIsAddingCategory(true);
   };
 
@@ -127,18 +134,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       description: c.description,
       imageUrl: c.imageUrl
     });
+    setCatUploadStatus('');
     setIsAddingCategory(true);
   };
 
   const handleSyncAllCategoriesToFirestore = async () => {
     setIsSyncingAllCategories(true);
     setCatSyncSuccess('');
+    setCatSyncError('');
     try {
-      await saveAllCategories(categories);
-      setCatSyncSuccess('All categories successfully synced to Firebase Firestore database!');
-      setTimeout(() => setCatSyncSuccess(''), 5000);
+      const res = await saveAllCategories(categories);
+      if (res.synced) {
+        setCatSyncSuccess('All categories successfully synced to Firebase Firestore! Now visible across all mobiles & browsers.');
+        setTimeout(() => setCatSyncSuccess(''), 6000);
+      } else {
+        setCatSyncError(
+          `Firebase Rules blocked saving categories (${res.error || 'Permission Denied'}). Please copy the updated rules from the "Firestore Rules" tab into Firebase Console -> Firestore Database -> Rules.`
+        );
+      }
     } catch (err: any) {
-      alert(`Sync error: ${err.message}`);
+      setCatSyncError(`Sync error: ${err.message}`);
     } finally {
       setIsSyncingAllCategories(false);
     }
@@ -153,10 +168,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const updated = categories.filter(c => c.id !== catId);
       onUpdateCategories(updated);
       saveStoredCategories(updated);
-      try {
-        await deleteCategory(catId);
-      } catch (err) {
-        console.warn('Firestore delete category warning:', err);
+      const res = await deleteCategory(catId);
+      if (!res.synced) {
+        setCatSyncError(`Deleted locally, but Firebase Rules blocked cloud delete (${res.error}).`);
       }
     }
   };
@@ -229,58 +243,129 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setIsEditingProduct(true);
   };
 
-  // 1-Click Duplicate Product Feature (ڈپلیکیٹ ہو سکے)
+  // 1-Click Duplicate Product Feature (Creates full independent copy in Firestore)
   const handleDuplicateProduct = async (p: Product) => {
-    const duplicatedProduct: Product = {
-      ...p,
-      id: `prod-${Date.now()}`,
-      title: `${p.title} (Copy)`,
-      createdAt: new Date().toISOString()
-    };
-    await saveProduct(duplicatedProduct);
-    onRefreshProducts();
+    setDuplicatingProductId(p.id);
+    setProductNotice(null);
+    try {
+      const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const duplicatedProduct: Product = {
+        id: `prod-${uniqueSuffix}`,
+        title: `${p.title} (Copy)`,
+        category: p.category,
+        price: p.price,
+        ...(typeof p.originalPrice === 'number' && !Number.isNaN(p.originalPrice) ? { originalPrice: p.originalPrice } : {}),
+        description: p.description || '',
+        imageUrl: p.imageUrl,
+        additionalImages: Array.isArray(p.additionalImages) ? [...p.additionalImages] : [],
+        dimensions: p.dimensions || '',
+        material: p.material || '',
+        color: p.color || '',
+        inStock: p.inStock,
+        isFeatured: !!p.isFeatured,
+        createdAt: new Date().toISOString()
+      };
+
+      const res = await saveProduct(duplicatedProduct);
+      await onRefreshProducts();
+
+      if (res.synced) {
+        setProductNotice({
+          type: 'success',
+          message: `Product "${p.title}" duplicated successfully and saved to Firebase Cloud!`
+        });
+      } else {
+        setProductNotice({
+          type: 'error',
+          message: `Duplicated locally, but Firebase sync failed: ${res.error}. Check Firestore Rules.`
+        });
+      }
+      setTimeout(() => setProductNotice(null), 5000);
+    } catch (err: any) {
+      setProductNotice({
+        type: 'error',
+        message: `Failed to duplicate product: ${err?.message || 'Unknown error'}`
+      });
+    } finally {
+      setDuplicatingProductId(null);
+    }
   };
 
-  // Handle Image Upload via ImgBB
+  // Handle Multi-Image Unlimited Upload via ImgBB (5, 10, or unlimited images at once)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
 
     setIsUploadingImage(true);
-    setUploadStatus('Uploading image to ImgBB...');
+    const uploadedUrls: string[] = [];
+    const failedFiles: string[] = [];
+
     try {
-      const hostedUrl = await uploadImageToImgBB(file);
-      if (!productForm.imageUrl) {
-        // If no primary image set, make this the primary cover
-        setProductForm(prev => ({ ...prev, imageUrl: hostedUrl }));
-      } else {
-        // Otherwise append to gallery
-        setProductForm(prev => ({
-          ...prev,
-          additionalImages: [...prev.additionalImages, hostedUrl]
-        }));
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadStatus(`Uploading image ${i + 1} of ${files.length}...`);
+        try {
+          const hostedUrl = await uploadImageToImgBB(file);
+          uploadedUrls.push(hostedUrl);
+        } catch (err) {
+          console.error(`Failed to upload ${file.name}:`, err);
+          failedFiles.push(file.name);
+        }
       }
-      setUploadStatus('Image uploaded successfully!');
-    } catch (err: any) {
-      alert(`Image upload error: ${err.message || 'Check ImgBB connection'}`);
-      setUploadStatus('');
+
+      if (uploadedUrls.length > 0) {
+        setProductForm(prev => {
+          if (!prev.imageUrl) {
+            const [first, ...rest] = uploadedUrls;
+            return {
+              ...prev,
+              imageUrl: first,
+              additionalImages: [...prev.additionalImages, ...rest]
+            };
+          }
+          return {
+            ...prev,
+            additionalImages: [...prev.additionalImages, ...uploadedUrls]
+          };
+        });
+      }
+
+      if (failedFiles.length > 0) {
+        setUploadStatus(`Uploaded ${uploadedUrls.length} image(s). ${failedFiles.length} failed.`);
+      } else {
+        setUploadStatus(`Successfully uploaded ${uploadedUrls.length} image(s)! You can upload more anytime.`);
+      }
     } finally {
       setIsUploadingImage(false);
+      // Reset input so user can pick more batches immediately
+      e.target.value = '';
     }
   };
 
-  // Add image by URL
+  // Add image(s) by URL (supports single URL or multiple comma/newline separated URLs)
   const handleAddImageUrl = () => {
     if (!imageUrlInput.trim()) return;
-    const url = imageUrlInput.trim();
-    if (!productForm.imageUrl) {
-      setProductForm(prev => ({ ...prev, imageUrl: url }));
-    } else {
-      setProductForm(prev => ({
+    const urls = imageUrlInput
+      .split(/[\n,]+/)
+      .map(u => u.trim())
+      .filter(u => u.startsWith('http://') || u.startsWith('https://'));
+
+    if (urls.length === 0) return;
+
+    setProductForm(prev => {
+      if (!prev.imageUrl) {
+        const [first, ...rest] = urls;
+        return {
+          ...prev,
+          imageUrl: first,
+          additionalImages: [...prev.additionalImages, ...rest]
+        };
+      }
+      return {
         ...prev,
-        additionalImages: [...prev.additionalImages, url]
-      }));
-    }
+        additionalImages: [...prev.additionalImages, ...urls]
+      };
+    });
     setImageUrlInput('');
   };
 
@@ -325,33 +410,61 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       return;
     }
 
-    const item: Product = {
-      id: editingId || `prod-${Date.now()}`,
-      title: productForm.title,
-      category: productForm.category,
-      price: parseFloat(productForm.price),
-      originalPrice: productForm.originalPrice ? parseFloat(productForm.originalPrice) : undefined,
-      description: productForm.description,
-      imageUrl: productForm.imageUrl,
-      additionalImages: productForm.additionalImages,
-      dimensions: productForm.dimensions,
-      material: productForm.material,
-      color: productForm.color,
-      inStock: productForm.inStock,
-      isFeatured: productForm.isFeatured,
-      createdAt: editingId ? undefined : new Date().toISOString()
-    };
+    setIsSavingProduct(true);
+    setProductNotice(null);
+    try {
+      const existing = editingId ? products.find(p => p.id === editingId) : undefined;
+      const parsedOriginal = productForm.originalPrice ? parseFloat(productForm.originalPrice) : undefined;
 
-    await saveProduct(item);
-    onRefreshProducts();
-    setIsEditingProduct(false);
+      const item: Product = {
+        id: editingId || `prod-${Date.now()}`,
+        title: productForm.title.trim(),
+        category: productForm.category,
+        price: parseFloat(productForm.price),
+        ...(typeof parsedOriginal === 'number' && !Number.isNaN(parsedOriginal) ? { originalPrice: parsedOriginal } : {}),
+        description: productForm.description,
+        imageUrl: productForm.imageUrl,
+        additionalImages: productForm.additionalImages,
+        dimensions: productForm.dimensions,
+        material: productForm.material,
+        color: productForm.color,
+        inStock: productForm.inStock,
+        isFeatured: productForm.isFeatured,
+        createdAt: existing?.createdAt || new Date().toISOString()
+      };
+
+      const res = await saveProduct(item);
+      await onRefreshProducts();
+      setIsEditingProduct(false);
+
+      if (res.synced) {
+        setProductNotice({
+          type: 'success',
+          message: `Product "${item.title}" saved & synced to Firebase Cloud!`
+        });
+      } else {
+        setProductNotice({
+          type: 'error',
+          message: `Saved locally only! Firebase sync error: ${res.error}. Check Firestore Rules.`
+        });
+      }
+      setTimeout(() => setProductNotice(null), 5000);
+    } finally {
+      setIsSavingProduct(false);
+    }
   };
 
   // Delete product
   const handleDeleteProduct = async (id: string, title: string) => {
     if (window.confirm(`Are you sure you want to delete "${title}"?`)) {
-      await deleteProduct(id);
-      onRefreshProducts();
+      const res = await deleteProduct(id);
+      await onRefreshProducts();
+      if (!res.synced) {
+        setProductNotice({
+          type: 'error',
+          message: `Deleted locally, but Firebase delete failed: ${res.error}`
+        });
+      }
     }
   };
 
@@ -360,44 +473,64 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     e.preventDefault();
     if (!categoryForm.name.trim()) return;
 
-    let updated: Category[];
-    let savedCat: Category;
-    if (editingCategoryId) {
-      const existing = categories.find(c => c.id === editingCategoryId);
-      savedCat = {
-        ...existing!,
-        id: editingCategoryId,
-        name: categoryForm.name.trim(),
-        slug: categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
-        description: categoryForm.description.trim() || existing?.description || 'Custom furniture collection handcrafted for Riyadh.',
-        imageUrl: categoryForm.imageUrl.trim() || existing?.imageUrl || ''
-      };
-      updated = categories.map(c => c.id === editingCategoryId ? savedCat : c);
-    } else {
-      savedCat = {
-        id: `cat-${Date.now()}`,
-        name: categoryForm.name.trim(),
-        slug: categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
-        description: categoryForm.description.trim() || 'Custom furniture collection handcrafted for Riyadh.',
-        imageUrl: categoryForm.imageUrl.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80'
-      };
-      updated = [...categories, savedCat];
-    }
+    setIsSavingCategory(true);
+    setCatSyncSuccess('');
+    setCatSyncError('');
 
-    onUpdateCategories(updated);
-    saveStoredCategories(updated);
-
-    // Save directly to Firestore database so changes persist across all refreshes and devices
     try {
-      await saveCategory(savedCat);
-      await saveAllCategories(updated);
-    } catch (err: any) {
-      console.warn('Firestore category sync warning:', err);
-    }
+      let updated: Category[];
+      let savedCat: Category;
+      let orderIdx = categories.length;
 
-    setIsAddingCategory(false);
-    setEditingCategoryId(null);
-    setCategoryForm({ name: '', description: '', imageUrl: '' });
+      if (editingCategoryId) {
+        const existingIndex = categories.findIndex(c => c.id === editingCategoryId);
+        const existing = categories[existingIndex];
+        orderIdx = existingIndex >= 0 ? existingIndex : 0;
+        savedCat = {
+          id: editingCategoryId,
+          name: categoryForm.name.trim(),
+          slug: categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
+          description: categoryForm.description.trim() || existing?.description || 'Custom furniture collection handcrafted for Riyadh.',
+          imageUrl: categoryForm.imageUrl.trim() || existing?.imageUrl || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80'
+        };
+        updated = categories.map(c => c.id === editingCategoryId ? savedCat : c);
+      } else {
+        savedCat = {
+          id: `cat-${Date.now()}`,
+          name: categoryForm.name.trim(),
+          slug: categoryForm.name.toLowerCase().replace(/\s+/g, '-'),
+          description: categoryForm.description.trim() || 'Custom furniture collection handcrafted for Riyadh.',
+          imageUrl: categoryForm.imageUrl.trim() || 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80'
+        };
+        updated = [...categories, savedCat];
+      }
+
+      onUpdateCategories(updated);
+      saveStoredCategories(updated);
+
+      // Atomic batch sync of all categories so every mobile & cleared browser loads exact order & images
+      const batchRes = await saveAllCategories(updated);
+      if (!batchRes.synced) {
+        const singleRes = await saveCategory(savedCat, orderIdx);
+        if (!singleRes.synced) {
+          setCatSyncError(
+            `Saved on this device only! Firebase Rules blocked cloud update (${singleRes.error || batchRes.error}). Go to "Firestore Rules" tab, copy the rules, and update them in Firebase Console -> Firestore Database -> Rules.`
+          );
+        } else {
+          setCatSyncSuccess(`Category "${savedCat.name}" saved to Firebase Cloud!`);
+        }
+      } else {
+        setCatSyncSuccess(`Category "${savedCat.name}" saved & synced to Firebase Cloud! Visible on all mobiles & devices.`);
+        setTimeout(() => setCatSyncSuccess(''), 6000);
+      }
+
+      setIsAddingCategory(false);
+      setEditingCategoryId(null);
+      setCategoryForm({ name: '', description: '', imageUrl: '' });
+      setCatUploadStatus('');
+    } finally {
+      setIsSavingCategory(false);
+    }
   };
 
   // Handle Category Image Upload via ImgBB
@@ -405,13 +538,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploadingCatImage(true);
+    setCatUploadStatus('Uploading image to ImgBB...');
     try {
       const url = await uploadImageToImgBB(file);
       setCategoryForm(prev => ({ ...prev, imageUrl: url }));
+      setCatUploadStatus('Image uploaded! Click "Save Category" below to sync across all devices.');
     } catch (err: any) {
       alert(`Category image upload error: ${err.message}`);
+      setCatUploadStatus('');
     } finally {
       setIsUploadingCatImage(false);
+      e.target.value = '';
     }
   };
 
@@ -606,6 +743,32 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </button>
                 </div>
 
+                {productNotice && (
+                  <div className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 border ${
+                    productNotice.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      {productNotice.type === 'success' ? (
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      )}
+                      <span>{productNotice.message}</span>
+                    </div>
+                    {productNotice.type === 'error' && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('rules')}
+                        className="px-2.5 py-1 bg-rose-700 text-white rounded-md font-semibold shrink-0 cursor-pointer"
+                      >
+                        View Rules
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Table of Products */}
                 <div className="border border-stone-200 rounded-2xl overflow-hidden bg-white shadow-xs">
                   <div className="overflow-x-auto">
@@ -622,6 +785,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <tbody className="divide-y divide-stone-100">
                         {products.map((p) => {
                           const totalImgCount = 1 + (p.additionalImages?.length || 0);
+                          const isDuplicatingThis = duplicatingProductId === p.id;
                           return (
                             <tr key={p.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
                               <td className="py-3 px-4">
@@ -667,19 +831,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                               <td className="py-3 px-4 text-right">
                                 <div className="inline-flex items-center gap-1.5">
-                                  {/* Duplicate button (ڈپلیکیٹ ہو سکے) */}
+                                  {/* Duplicate button */}
                                   <button
+                                    type="button"
+                                    disabled={isDuplicatingThis}
                                     onClick={() => handleDuplicateProduct(p)}
-                                    className="p-1.5 text-stone-500 hover:text-[#C59A3F] hover:bg-stone-100 rounded-md transition-colors"
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-stone-600 hover:text-[#C59A3F] hover:bg-stone-100 rounded-md transition-colors cursor-pointer disabled:opacity-50"
                                     title="Duplicate / Clone Product"
                                   >
                                     <Copy className="w-3.5 h-3.5" />
+                                    <span className="text-[10px] font-semibold">
+                                      {isDuplicatingThis ? '...' : 'Duplicate'}
+                                    </span>
                                   </button>
 
                                   {/* Edit button */}
                                   <button
+                                    type="button"
                                     onClick={() => handleOpenEditProduct(p)}
-                                    className="p-1.5 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-colors"
+                                    className="p-1.5 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-md transition-colors cursor-pointer"
                                     title="Edit Product"
                                   >
                                     <Edit3 className="w-3.5 h-3.5" />
@@ -687,8 +857,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                                   {/* Delete button */}
                                   <button
+                                    type="button"
                                     onClick={() => handleDeleteProduct(p.id, p.title)}
-                                    className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-stone-100 rounded-md transition-colors"
+                                    className="p-1.5 text-stone-500 hover:text-rose-600 hover:bg-stone-100 rounded-md transition-colors cursor-pointer"
                                     title="Delete Product"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -743,6 +914,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>{catSyncSuccess}</span>
+                  </div>
+                )}
+
+                {catSyncError && (
+                  <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-900 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{catSyncError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('rules')}
+                      className="px-3 py-1.5 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-[11px] font-bold shrink-0 cursor-pointer"
+                    >
+                      Open & Copy Rules
+                    </button>
                   </div>
                 )}
 
@@ -955,24 +1142,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
               </div>
 
-              {/* Multi-Image Gallery & ImgBB Upload Section */}
+              {/* Multi-Image Gallery & Unlimited ImgBB Upload Section */}
               <div className="p-4 bg-[#FAF8F5] rounded-2xl border border-stone-200 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <label className="block font-bold text-stone-900 text-xs">
-                      Product Images Gallery ({allCurrentImages.length} images)
+                      Product Images Gallery ({allCurrentImages.length} images – Unlimited)
                     </label>
                     <p className="text-[11px] text-stone-500">
-                      Upload via ImgBB or add URLs. Click "Set as Cover" to select the first/main image!
+                      Select 5, 10, or unlimited images at once via ImgBB, or add URLs. Tap "Set Cover" to pick the main thumbnail.
                     </p>
                   </div>
 
-                  <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-stone-50 text-stone-800 border border-stone-300 rounded-lg cursor-pointer transition-colors shadow-xs font-semibold text-xs">
+                  <label className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#1A2332] hover:bg-black text-white rounded-lg cursor-pointer transition-colors shadow-xs font-semibold text-xs shrink-0">
                     <Upload className="w-3.5 h-3.5 text-[#C59A3F]" />
-                    <span>{isUploadingImage ? 'Uploading...' : 'Upload via ImgBB'}</span>
+                    <span>{isUploadingImage ? 'Uploading...' : 'Upload Images (Multi)'}</span>
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
                       onChange={handleFileUpload}
                       className="hidden"
                       disabled={isUploadingImage}
@@ -981,7 +1169,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </div>
 
                 {uploadStatus && (
-                  <div className="text-[11px] text-[#C59A3F] font-semibold">
+                  <div className="text-[11px] text-[#A67D28] bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg font-semibold">
                     {uploadStatus}
                   </div>
                 )}
@@ -989,61 +1177,68 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 {/* Add image URL input */}
                 <div className="flex items-center gap-2">
                   <input
-                    type="url"
+                    type="text"
                     value={imageUrlInput}
                     onChange={(e) => setImageUrlInput(e.target.value)}
-                    placeholder="Or paste image URL (https://...)"
+                    placeholder="Or paste 1 or multiple image URLs (comma-separated)"
                     className="flex-1 px-3 py-2 bg-white border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden focus:border-[#C59A3F]"
                   />
                   <button
                     type="button"
                     onClick={handleAddImageUrl}
-                    className="px-3.5 py-2 bg-stone-800 hover:bg-black text-white rounded-lg text-xs font-semibold transition-colors shrink-0"
+                    className="px-3.5 py-2 bg-stone-800 hover:bg-black text-white rounded-lg text-xs font-semibold transition-colors shrink-0 cursor-pointer"
                   >
-                    Add Image
+                    Add URL
                   </button>
                 </div>
 
-                {/* Image thumbnails list with Cover selector */}
+                {/* Image thumbnails list with touch-friendly Cover & Remove buttons */}
                 {allCurrentImages.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 max-h-72 overflow-y-auto pr-1">
                     {allCurrentImages.map((imgUrl, idx) => {
                       const isCover = imgUrl === productForm.imageUrl;
                       return (
                         <div
-                          key={idx}
-                          className={`relative rounded-xl overflow-hidden border-2 bg-white shadow-xs group ${
+                          key={`${imgUrl}-${idx}`}
+                          className={`relative rounded-xl overflow-hidden border-2 bg-white shadow-xs flex flex-col ${
                             isCover ? 'border-[#C59A3F] ring-2 ring-[#C59A3F]/30' : 'border-stone-200'
                           }`}
                         >
-                          <div className="aspect-square w-full">
+                          <div className="relative aspect-square w-full bg-stone-100">
                             <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                            {isCover ? (
+                              <span className="absolute top-1 left-1 bg-[#C59A3F] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
+                                <Star className="w-2.5 h-2.5 fill-white" /> Cover
+                              </span>
+                            ) : (
+                              <span className="absolute top-1 left-1 bg-black/65 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                                #{idx + 1}
+                              </span>
+                            )}
                           </div>
 
-                          {/* Cover badge */}
-                          {isCover && (
-                            <span className="absolute top-1 left-1 bg-[#C59A3F] text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md flex items-center gap-1 shadow-xs">
-                              <Star className="w-2.5 h-2.5 fill-white" /> First / Cover
-                            </span>
-                          )}
-
-                          {/* Hover action overlay */}
-                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
-                            {!isCover && (
+                          {/* Touch-friendly Action Bar */}
+                          <div className="p-1.5 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-1">
+                            {!isCover ? (
                               <button
                                 type="button"
                                 onClick={() => handleSetCoverImage(imgUrl)}
-                                className="px-2 py-1 bg-[#C59A3F] hover:bg-[#A67D28] text-white text-[10px] font-bold rounded-md transition-colors"
+                                className="flex-1 py-1 bg-[#C59A3F] hover:bg-[#A67D28] text-white text-[10px] font-bold rounded-md transition-colors cursor-pointer"
                               >
-                                Set as Cover
+                                Set Cover
                               </button>
+                            ) : (
+                              <span className="flex-1 text-center text-[10px] font-bold text-[#A67D28]">
+                                Main Image
+                              </span>
                             )}
                             <button
                               type="button"
                               onClick={() => handleRemoveImage(imgUrl)}
-                              className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded-md transition-colors"
+                              className="p-1 bg-rose-100 hover:bg-rose-600 text-rose-700 hover:text-white rounded-md transition-colors cursor-pointer"
+                              title="Remove image"
                             >
-                              Remove
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
@@ -1052,7 +1247,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 ) : (
                   <div className="text-center py-6 border-2 border-dashed border-stone-200 rounded-xl text-stone-400 text-xs">
-                    No images added yet. Upload an image above or paste a URL.
+                    No images added yet. Select multiple images above or paste URLs.
                   </div>
                 )}
               </div>
@@ -1096,15 +1291,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsEditingProduct(false)}
-                  className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg font-semibold"
+                  className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-[#1A2332] hover:bg-black text-white rounded-lg font-semibold shadow-xs"
+                  disabled={isSavingProduct || isUploadingImage}
+                  className="px-6 py-2.5 bg-[#1A2332] hover:bg-black text-white rounded-lg font-semibold shadow-xs cursor-pointer disabled:opacity-60"
                 >
-                  Save Product to Catalog
+                  {isSavingProduct ? 'Saving to Cloud...' : 'Save Product to Catalog'}
                 </button>
               </div>
             </form>
@@ -1112,17 +1308,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
       )}
 
-      {/* Create New Category Modal (کیٹیگریز بنانے کا آپشن) */}
+      {/* Create / Edit Category Modal with Live Preview */}
       {isAddingCategory && (
         <div className="fixed inset-0 z-60 bg-black/75 flex items-center justify-center p-4">
-          <div className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200">
+          <div className="relative bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-stone-200 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-4">
               <h3 className="font-serif font-bold text-lg text-stone-900">
                 {editingCategoryId ? 'Edit Category' : 'Create New Category'}
               </h3>
               <button
                 onClick={() => setIsAddingCategory(false)}
-                className="p-1 rounded-full hover:bg-stone-100 text-stone-500"
+                className="p-1 rounded-full hover:bg-stone-100 text-stone-500 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1160,10 +1356,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <label className="block font-semibold text-stone-700 mb-1">
                   Category Image
                 </label>
+                {categoryForm.imageUrl && (
+                  <div className="mb-2.5 w-full h-36 rounded-xl overflow-hidden bg-stone-100 border border-stone-200">
+                    <img
+                      src={categoryForm.imageUrl}
+                      alt="Category preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
                 <div className="flex items-center gap-2 mb-2">
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-lg cursor-pointer text-xs font-semibold">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#1A2332] hover:bg-black text-white rounded-lg cursor-pointer text-xs font-semibold">
                     <Upload className="w-3.5 h-3.5 text-[#C59A3F]" />
-                    <span>{isUploadingCatImage ? 'Uploading...' : 'Upload Image'}</span>
+                    <span>{isUploadingCatImage ? 'Uploading Image...' : 'Upload Image'}</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -1173,6 +1378,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     />
                   </label>
                 </div>
+                {catUploadStatus && (
+                  <div className="text-[11px] text-[#A67D28] bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg mb-2 font-semibold">
+                    {catUploadStatus}
+                  </div>
+                )}
                 <input
                   type="url"
                   value={categoryForm.imageUrl}
@@ -1186,15 +1396,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddingCategory(false)}
-                  className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-semibold"
+                  className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#1A2332] text-white rounded-lg font-semibold shadow-xs"
+                  disabled={isSavingCategory || isUploadingCatImage}
+                  className="px-5 py-2 bg-[#1A2332] hover:bg-black text-white rounded-lg font-semibold shadow-xs cursor-pointer disabled:opacity-60"
                 >
-                  Save Category
+                  {isSavingCategory ? 'Saving to Cloud...' : 'Save Category'}
                 </button>
               </div>
             </form>
